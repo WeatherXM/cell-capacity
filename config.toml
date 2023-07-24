@@ -1,0 +1,10 @@
+h3_resolution=7 # required
+elev_diff_thresh=100 # required
+cell_buffer=250 # required
+min_area_urban=400000 # required
+min_area_green=15000 # required
+min_aspect_zone_area_cell_perc=0.166 # required (1/6=0.166)
+include_buildings=true # required
+largest_urban=true # optional
+largest_green=true # optional
+ncpus=16 # optional
