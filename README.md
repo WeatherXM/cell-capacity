@@ -1,8 +1,17 @@
-# `cellxm`
+# `WeatherXM cell modelling`
 
 # Introduction
 
-A CLI tool to identify the optimum location of **WeatherXM** stations in a given country
+This is a CLI tool used to identify the optimum location of **WeatherXM** stations distribution around the world.
+
+Earth’s surface is not uniform, each area has its own meteorological peculiarities, from nearly uniform pieces of land that extend many kilometres, to small islands that include coastlines and hills and urban areas in a few square kilometres, to cities where skyscrapers are next to parks, lakes and sea. 
+
+In order to identify ideal station locations:
+- We created a grid of hexagonal cells (size 7 of H3 grid system) that cover the whole Earth.
+- We used topographic and urban land use data to identify each cell’s characteristics.
+- We broke down each cell into zones, and used the zones to calculate the number of stations required in each cell (aka “cell capacity”). 
+
+See more details at: https://docs.google.com/document/d/1Cdr2sJ7cKMgymt6SI_5UwHs855FI8yizdjb-mJyFJnE/edit?usp=sharing
 
 # Installation
 
