@@ -4,7 +4,11 @@
 
 This is a CLI tool used to identify the **optimum location of WeatherXM weather stations distribution around the world.** 
 
-WeatherXM's mission involves the development of an all-encompassing weather network from the ground up. This initiative seeks to not only cater to the needs of its clients but also to contribute significantly to the scientific domains of meteorology and climatology. As a general rule, the design of a weather network should ensure that the collected data are representative and sufficient, and can be used to derive the analysis required from the measurements. Hence, our network aims to: a. meet the needs of various purposes, which may conflict together, b. be robust in cases that one or more sensors fail to measure, c. take into account different needs, purposes and users with different temporal and spatial scales.
+WeatherXM's mission involves the development of an all-encompassing weather network from the ground up. This initiative seeks to not only cater for the needs of its clients, but also to contribute significantly to the scientific domains of meteorology and climatology. As a general rule, the design of a weather network should ensure that the collected data are representative and sufficient, and can be used to derive the analysis required from the measurements. Hence, our network aims to:
+1. meet the needs of various purposes, which may conflict together,
+2. be robust in cases that one or more sensors fail to measure,
+3. take into account different needs, purposes and users with different temporal and spatial scales.
+
 
 Earth’s surface is not uniform, each area has its own meteorological peculiarities, from nearly uniform pieces of land that extend many kilometres, to small islands that include coastlines and hills and urban areas in a few square kilometres, to cities where skyscrapers are next to parks, lakes and sea. To locate the areas needing meteorological coverage via weather stations:
 - We created a grid of hexagonal cells (size 7 of H3 grid system) that cover the whole Earth.
