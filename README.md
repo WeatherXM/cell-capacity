@@ -15,7 +15,7 @@ Earth’s surface is not uniform, each area has its own meteorological peculiari
 - We used topographic and urban land use data to identify each cell’s characteristics, using OSM data with the Copernicus GLO-90 Digital Elevation Model.
 - We broke down each cell into zones, and used the zones to calculate the number of stations required in each cell (aka “cell capacity”). 
 
-For a more scientific explanation see [full documentation](docs/)
+For a more scientific explanation see the [full documentation here](docs/).
 
 Using cell sizes 7 and 5 of the H3 grid system leads to densities of one station for every 4.2km2 (size 7) to 136km2 (size 5) depending on the complexity of topography and land use within a grid cell. In other words, we are striving for a minimum of 1,088,505 stations. However, the number of stations with a defined spatial distribution advised by our algorithm's output, intended to meet a broad spectrum of scientific and commercial needs, totals 35,397,821. 
 
