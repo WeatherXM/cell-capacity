@@ -22,7 +22,7 @@ Using cells of resolution 7 and 5 of the [H3 grid system](https://h3geo.org/) le
 - 1 station for every 136 km<sup>2</sup> for resolution 5
 depending on the complexity of topography and land use within a grid cell. In other words, we are striving for a minimum of 1,088,505 stations. However, the number of stations with a defined spatial distribution advised by our algorithm's output, intended to meet a broad spectrum of scientific and commercial needs, total to **35,397,821**. 
 
-**In other words, we are answering the question "where would you put 1 million weather stations to make best use of them".**
+In other words, we are answering the question "**where would you put 1 million weather stations to make best use of them"**.
 
 If you just want the output result files(total 44GBs) we have stored them in IPFS, organized per country.
 https://bafybeidagjc2qkgcm7ves6pa3xdn7ol642wtqw5pt2qtj3rq4viyqbjd6q.ipfs.dweb.link
