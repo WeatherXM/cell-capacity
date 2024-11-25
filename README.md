@@ -12,7 +12,7 @@ WeatherXM's mission involves the development of an all-encompassing weather netw
 
 Earth’s surface is not uniform, each area has its own meteorological peculiarities, from nearly uniform pieces of land that extend many kilometres, to small islands that include coastlines and hills and urban areas in a few square kilometres, to cities where skyscrapers are next to parks, lakes and sea. To locate the areas needing meteorological coverage via weather stations:
 - We created a grid of hexagonal cells (size 7 of H3 grid system) that cover the whole Earth.
-- We used topographic and urban land use data to identify each cell’s characteristic, using OSM data with the Copernicus GLO-90 Digital Elevation Model.
+- We used topographic and urban land use data to identify each cell’s characteristics, using OSM data with the Copernicus GLO-90 Digital Elevation Model.
 - We broke down each cell into zones, and used the zones to calculate the number of stations required in each cell (aka “cell capacity”). 
 
 For a more scientific explanation see [full documentation](docs/)
