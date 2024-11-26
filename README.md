@@ -2,18 +2,32 @@
 
 # Introduction
 
-This is a CLI tool used to identify the optimum location of **WeatherXM** stations distribution around the world.
+This is a CLI tool used to identify the **optimum location of WeatherXM weather stations distribution around the world.** 
 
-Earth’s surface is not uniform, each area has its own meteorological peculiarities, from nearly uniform pieces of land that extend many kilometres, to small islands that include coastlines and hills and urban areas in a few square kilometres, to cities where skyscrapers are next to parks, lakes and sea.
+WeatherXM's mission involves the development of an all-encompassing weather network from the ground up. This initiative seeks to not only cater for the needs of its clients, but also to contribute significantly to the scientific domains of meteorology and climatology. As a general rule, the design of a weather network should ensure that the collected data are representative and sufficient, and can be used to derive the analysis required from the measurements. Hence, our network aims to:
+1. meet the needs of various purposes, which may conflict together,
+2. be robust in cases that one or more sensors fail to measure,
+3. take into account different needs, purposes and users with different temporal and spatial scales.
 
-WeatherXM's mission involves the development of an all-encompassing weather network from the ground up. This initiative seeks to not only cater to the needs of its clients but also to contribute significantly to the scientific domains of meteorology and climatology. As a general rule, the design of a weather network should ensure that the collected data are representative and sufficient, and can be used to derive the analysis required from the measurements. Hence, our network aims to: **a. meet the needs of various purposes, which may conflict together, b. be robust in cases that one or more sensors fail to measure, c. take into account different needs, purposes and users with different temporal and spatial scales.**
 
-To locate the areas needing meteorological coverage via weather stations:
+Earth’s surface is not uniform, each area has its own meteorological peculiarities, from nearly uniform pieces of land that extend many kilometres, to small islands that include coastlines and hills and urban areas in a few square kilometres, to cities where skyscrapers are next to parks, lakes and sea. To locate the areas needing meteorological coverage via weather stations:
 - We created a grid of hexagonal cells (size 7 of H3 grid system) that cover the whole Earth.
-- We used topographic and urban land use data to identify each cell’s characteristics.
+- We used topographic and urban land use data to identify each cell’s characteristics, using OSM data with the Copernicus GLO-90 Digital Elevation Model.
 - We broke down each cell into zones, and used the zones to calculate the number of stations required in each cell (aka “cell capacity”). 
 
-See more details at: https://docs.google.com/document/d/1Cdr2sJ7cKMgymt6SI_5UwHs855FI8yizdjb-mJyFJnE/edit?usp=sharing
+For a more scientific explanation see the [full documentation here](docs/).
+
+Using cells of resolution 7 and 5 of the [H3 grid system](https://h3geo.org/) leads to the following densities:
+- 1 station for every 4.2 km<sup>2</sup> for resolution 7 
+- 1 station for every 136 km<sup>2</sup> for resolution 5
+depending on the complexity of topography and land use within a grid cell. In other words, we are striving for a minimum of 1,088,505 stations. However, the number of stations with a defined spatial distribution advised by our algorithm's output, intended to meet a broad spectrum of scientific and commercial needs, total to **35,397,821**. 
+
+In other words, we are answering the question "**where would you put 1 million weather stations to make best use of them"**.
+
+If you just want the output result files(total 44GBs) we have stored them in IPFS, organized per country.
+https://bafybeidagjc2qkgcm7ves6pa3xdn7ol642wtqw5pt2qtj3rq4viyqbjd6q.ipfs.w3s.link
+
+If you want to recalculate the files, bellow are the instructions.
 
 # Installation
 
