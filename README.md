@@ -25,7 +25,7 @@ depending on the complexity of topography and land use within a grid cell. In ot
 In other words, we are answering the question "**where would you put 1 million weather stations to make best use of them"**.
 
 If you just want the output result files(total 44GBs) we have stored them in IPFS, organized per country.
-https://bafybeidagjc2qkgcm7ves6pa3xdn7ol642wtqw5pt2qtj3rq4viyqbjd6q.ipfs.dweb.link
+https://bafybeidagjc2qkgcm7ves6pa3xdn7ol642wtqw5pt2qtj3rq4viyqbjd6q.ipfs.w3s.link
 
 If you want to recalculate the files, bellow are the instructions.
 
