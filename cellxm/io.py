@@ -584,8 +584,10 @@ def combine_export(
         else:
             zones.to_file(zonesf, engine="pyogrio", mode="a")  # type:ignore
 
-    zones = gpd.read_file(zonesf, engine="pyogrio")
-    zones["zone_id"] = zones.reset_index(drop=True).index + 1
+    if zonesf.exists():
+        zones = gpd.read_file(zonesf, engine="pyogrio")
+        zones["zone_id"] = zones.reset_index(drop=True).index + 1
+        zones.to_file(zonesf, engine="pyogrio")  # type:ignore
 
     for f in list(in_folder.rglob("stations*.gpkg")):
         stations = gpd.read_file(f, engine="pyogrio")
@@ -595,8 +597,10 @@ def combine_export(
         else:
             stations.to_file(stationsf, engine="pyogrio", mode="a")  # type:ignore
 
-    stations = gpd.read_file(stationsf, engine="pyogrio")
-    stations["station_id"] = stations.reset_index(drop=True).index + 1
+    if stationsf.exists():
+        stations = gpd.read_file(stationsf, engine="pyogrio")
+        stations["station_id"] = stations.reset_index(drop=True).index + 1
+        stations.to_file(stationsf, engine="pyogrio")  # type:ignore
 
     if duration:
         _duration = duration.total_seconds()
