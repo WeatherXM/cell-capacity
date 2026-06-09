@@ -466,4 +466,20 @@ def locate(
             ncells, nzones, nstations = r
         else:
             logging.info("no stations were identified")
+            return
+
+    table = Table(title="Results")
+    table.add_column("Result type", justify="left", style="cyan")
+    table.add_column("#", style="green")
+
+    table.add_row("cells", f"{ncells}")
+    table.add_row("zones/stations", f"{nstations}")
+
+    console = Console()
+    console.print(table)
+    return ncells, nzones, nstations  # type: ignore
+
+
+if __name__ == "__main__":
+    app()
         
