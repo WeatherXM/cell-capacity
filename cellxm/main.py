@@ -72,6 +72,7 @@ def locate_stations_wrap(
     largest_urban: bool,
     largest_green: bool,
     min_aspect_zone_area_cell_perc: float,
+    dem_resample_factor: float = 1.0,
 ) -> Optional[Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]]:
     """Wrapper function to assign to multiprocessing"""
 
@@ -85,7 +86,7 @@ def locate_stations_wrap(
 
         cellsbuf = gpd.GeoDataFrame(cellsbuf)
 
-        dem = get_dem(cells=cellsbuf, land=land)
+        dem = get_dem(cells=cellsbuf, land=land, resample_factor=dem_resample_factor)
 
         if dem is None:
             return None
@@ -191,6 +192,10 @@ def locate(
         "./data/outputs", help="Location to export the results"
     ),
     ncpus: int = typer.Option(None, help="The number of cpus to be used"),
+    dem_resample_factor: float = typer.Option(
+        None,
+        help="Factor in (0, 1) to downsample the DEM and trade topographic accuracy for speed (e.g. 0.5 ~= 4x fewer points). Defaults to 1.0 (no downsampling).",
+    ),
 ) -> Optional[Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame]]:
     """The main function to locate weather stations on a country. It follows the methodology described in the Methodology Report
 
@@ -226,6 +231,7 @@ def locate(
         min_aspect_zone_area_cell_perc,
         include_buildings,
         out_folder,
+        dem_resample_factor,
     )
 
     h3_resolution = configd["h3_resolution"]
@@ -239,6 +245,8 @@ def locate(
     include_buildings = configd["include_buildings"]
     out_folder = configd["outfolder"]
     ncpus = configd.get("ncpus", None)
+    dem_resample_factor = configd.get("dem_resample_factor", 1.0)
+    maxtasksperchild = configd.get("maxtasksperchild", 200)
 
     if not ncpus:
         ncpus = os.cpu_count() or 1
@@ -322,54 +330,60 @@ def locate(
                 "[cyan]Identifying stations...", total=len(gxys)
             )
 
-            for xys in more_itertools.batched(gxys, ncpus * 2):
-                args = []
-                for xy in xys:
-                    x, y = xy
+            # Persistent pool: created once and reused across batches to avoid
+            # repeated 'spawn' worker startup. maxtasksperchild recycles workers
+            # periodically to bound memory (the original per-batch pool was a
+            # workaround for "weird freezing"/leaks).
+            with get_context("spawn").Pool(
+                ncpus, maxtasksperchild=maxtasksperchild
+            ) as pool:
+                for xys in more_itertools.batched(gxys, ncpus * 2):
+                    args = []
+                    for xy in xys:
+                        x, y = xy
 
-                    # At edge cases (e.g. around the poles) cells can cause issues
-                    if (abs(x) >= 178) or (abs(y) >= 88):
-                        progress.update(task_id, advance=1)
+                        # At edge cases (e.g. around the poles) cells can cause issues
+                        if (abs(x) >= 178) or (abs(y) >= 88):
+                            progress.update(task_id, advance=1)
+                            continue
+
+                        bbox = (x, y, x + step, y + step)
+
+                        cells = h3_cells_from_bbox(bbox, resolution=h3_resolution)
+                        cells = gpd.GeoDataFrame(cells[cells.centroid.within(boundary)])  # type: ignore
+
+                        if cells.empty:
+                            progress.update(task_id, advance=1)
+                            continue
+
+                        landc = land.clip(cells, keep_geom_type=True)  # type:ignore
+                        if landc.empty:
+                            progress.update(task_id, advance=1)
+                            continue
+
+                        coastc = coast.clip(cells, keep_geom_type=True)  # type:ignore
+                        osmc = osm.clip(cells, keep_geom_type=True)  # type:ignore
+
+                        args.append(
+                            [
+                                cells,
+                                landc,
+                                coastc,
+                                osmc,
+                                elev_diff_thresh,
+                                cell_buffer,
+                                min_area_green,
+                                min_area_urban,
+                                largest_urban,
+                                largest_green,
+                                min_aspect_zone_area_cell_perc,
+                                dem_resample_factor,
+                            ]
+                        )
+
+                    if not args:
                         continue
 
-                    bbox = (x, y, x + step, y + step)
-
-                    cells = h3_cells_from_bbox(bbox, resolution=h3_resolution)
-                    cells = gpd.GeoDataFrame(cells[cells.centroid.within(boundary)])  # type: ignore
-
-                    if cells.empty:
-                        progress.update(task_id, advance=1)
-                        continue
-
-                    landc = land.clip(cells, keep_geom_type=True)  # type:ignore
-                    if landc.empty:
-                        progress.update(task_id, advance=1)
-                        continue
-
-                    coastc = coast.clip(cells, keep_geom_type=True)  # type:ignore
-                    osmc = osm.clip(cells, keep_geom_type=True)  # type:ignore
-
-                    args.append(
-                        [
-                            cells,
-                            landc,
-                            coastc,
-                            osmc,
-                            elev_diff_thresh,
-                            cell_buffer,
-                            min_area_green,
-                            min_area_urban,
-                            largest_urban,
-                            largest_green,
-                            min_aspect_zone_area_cell_perc,
-                        ]
-                    )
-
-                if not args:
-                    continue
-
-                # fix weird freezing
-                with get_context("spawn").Pool(ncpus) as pool:
                     for result in pool.imap_unordered(
                         call_locate_stations_wrap,
                         args,
@@ -452,19 +466,4 @@ def locate(
             ncells, nzones, nstations = r
         else:
             logging.info("no stations were identified")
-            return
-
-    table = Table(title="Results")
-    table.add_column("Result type", justify="left", style="cyan")
-    table.add_column("#", style="green")
-
-    table.add_row("cells", f"{ncells}")
-    table.add_row("zones/stations", f"{nstations}")
-
-    console = Console()
-    console.print(table)
-    return ncells, nzones, nstations  # type: ignore
-
-
-if __name__ == "__main__":
-    app()
+        

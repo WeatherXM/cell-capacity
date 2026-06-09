@@ -8,3 +8,5 @@ include_buildings=true # required
 largest_urban=true # optional
 largest_green=true # optional
 ncpus=16 # optional
+dem_resample_factor=1.0 # optional. <1.0 downsamples the DEM to trade topo accuracy for speed (e.g. 0.5 ~= 4x fewer points)
+maxtasksperchild=200 # optional. Recycle each pool worker after this many tiles to bound memory
