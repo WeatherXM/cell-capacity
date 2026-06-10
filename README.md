@@ -31,6 +31,17 @@ If you want to recalculate the files, bellow are the instructions.
 
 # Installation
 
+## System Requirements
+
+The computational and memory requirements depend heavily on the size and geographic complexity of the country being processed (larger countries require significantly more resources):
+
+* **RAM:** 
+  * **Minimum:** 16 GB of RAM is strongly recommended for standard multi-process execution.
+  * **Self-Healing Protection:** The codebase includes an automatic, memory-aware safety mechanism. On startup, the script queries the system's physical RAM and automatically scales the number of parallel workers to allocate **~4GB of physical RAM per CPU worker**.
+* **CPU:** 
+  * Multiprocessing scales nicely with multiple cores.
+  * However, to avoid memory exhaustion and kernel watchdog lockups on 16GB RAM machines, the execution automatically caps the parallel processes to a maximum of **4 workers** by default, regardless of how many logical CPU cores your hardware has. On systems with larger RAM pools, it safely expands to a maximum of `RAM / 3.5GB` workers.
+
 ## Prerequisites
 
 The tool requires

@@ -7,4 +7,6 @@ min_aspect_zone_area_cell_perc=0.166 # required (1/6=0.166)
 include_buildings=true # required
 largest_urban=true # optional
 largest_green=true # optional
-ncpus=16 # optional
+# ncpus=4 # optional. If not set (or commented out), it automatically calculates a safe limit based on system RAM (~4GB RAM per CPU).
+dem_resample_factor=1.0 # optional. <1.0 downsamples the DEM to trade topo accuracy for speed (e.g. 0.5 ~= 4x fewer points)
+maxtasksperchild=200 # optional. Recycle each pool worker after this many tiles to bound memory

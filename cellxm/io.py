@@ -2,6 +2,8 @@ from typing import Tuple
 
 from pathlib import Path
 
+import json
+import time
 import tempfile
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -32,6 +34,60 @@ from pathlib import Path
 from cellxm import ogr2ogr
 
 
+GEOFABRIK_INDEX_URL = "https://download.geofabrik.de/index-v1.json"
+
+
+def get_geofabrik_index(
+    cache_folder="./.cache/osm",
+    ttl_hours: float = 720.0,
+    update: bool = False,
+) -> dict:
+    """Return the parsed Geofabrik index-v1.json, cached on disk.
+
+    The index lists every downloadable region and is several MB. It is identical
+    for every country, so re-downloading and re-parsing it on each run (e.g. 150+
+    times in run.sh) is wasted work. We cache the raw JSON locally and only hit
+    the network on a cache miss or once the cache is older than ``ttl_hours``.
+
+    Args:
+        cache_folder: Directory to store the cached index.
+        ttl_hours: Max age (hours) before the cached index is considered stale.
+        update: Force a re-download regardless of cache state.
+
+    Returns:
+        The parsed GeoJSON index as a dict.
+    """
+    cache_folder = Path(cache_folder)
+    cache_folder.mkdir(parents=True, exist_ok=True)
+    fp = cache_folder / "geofabrik-index-v1.json"
+
+    fresh = fp.exists() and (time.time() - fp.stat().st_mtime) < ttl_hours * 3600
+    if fresh and not update:
+        try:
+            with open(fp, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass  # corrupt/unreadable cache -> fall through and re-download
+
+    r = requests.get(GEOFABRIK_INDEX_URL)
+    if r.status_code != 200:
+        # network failed but a (possibly stale) cache exists -> use it
+        if fp.exists():
+            with open(fp, "r") as f:
+                return json.load(f)
+        raise ConnectionError(
+            f"""Failure to retrieve data from geofabrik.de
+                Please check if {GEOFABRIK_INDEX_URL} is accessible"""
+        )
+
+    index = r.json()
+    tmp = fp.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
+        json.dump(index, f)
+    tmp.replace(fp)  # atomic write so a crash can't leave a half-written cache
+    return index
+
+
 def download_osm_elems(
     country_code: str,
     cache_folder="./.cache/osm",
@@ -44,14 +100,9 @@ def download_osm_elems(
     fppbf = cache_folder / f"{country_code}.osm.pbf"
     fpgpkg = cache_folder / f"{country_code}.gpkg"
 
-    r = requests.get("https://download.geofabrik.de/index-v1.json")
-    if r.status_code != 200:
-        raise ConnectionError(
-            """Failure to retrieve data from geofabrik.de
-                Please check if https://download.geofabrik.de/index-v1.json is accessible"""
-        )
+    index = get_geofabrik_index(cache_folder, update=update)
 
-    df = gpd.GeoDataFrame.from_features(r.json())
+    df = gpd.GeoDataFrame.from_features(index)
     # df = pd.DataFrame([f["properties"] for f in r.json()["features"]])
     try:
         c = "iso3166-1:alpha2"
@@ -205,7 +256,7 @@ def download_dem_data(bbox: Tuple[int, int, int, int], datasource: str = "COP90"
 
                     fp = (
                         cp
-                        / f"Copernicus_DSM_COG_30_{yd}{str(absy).zfill(2)}_00_{xd}{str(absx).zfill(3)}_00_DEM.tif"
+                        / f"Copernicus_DSM_30_{yd}{str(absy).zfill(2)}_00_{xd}{str(absx).zfill(3)}_00_DEM.tif"
                     )
                     files.append(fp)
 
@@ -215,9 +266,34 @@ def download_dem_data(bbox: Tuple[int, int, int, int], datasource: str = "COP90"
     return list(set(files))
 
 
+def resample_out_shape(
+    count: int, height: int, width: int, factor: float | None
+) -> Tuple[int, int, int]:
+    """Compute the ``(count, height, width)`` out_shape for downsampling a raster.
+
+    A ``factor`` of ``None`` or ``>= 1`` is treated as a no-op (the original shape
+    is returned) so that the default pipeline behaviour is unchanged. The output
+    always keeps at least one pixel per axis.
+
+    Args:
+        count: Number of raster bands.
+        height: Original raster height in pixels.
+        width: Original raster width in pixels.
+        factor: Downsample factor in ``(0, 1)``; e.g. ``0.5`` halves each axis
+            (~4x fewer points). Values ``>= 1`` (or ``None``) are no-ops.
+
+    Returns:
+        The out_shape tuple to pass to ``rasterio`` ``read``.
+    """
+    if factor is None or factor >= 1:
+        return (count, height, width)
+    return (count, max(1, int(height * factor)), max(1, int(width * factor)))
+
+
 def get_dem(
     cells: gpd.GeoDataFrame,
     land: gpd.GeoDataFrame,
+    resample_factor: float = 1.0,
 ) -> gpd.GeoDataFrame | None:
     """Function to get the Digital Elevation Model (DEM) for a given set of h3 cells.
        If no intersection with land then the process returns None
@@ -225,6 +301,8 @@ def get_dem(
     Args:
         bbox (tuple): The bounding box of the area
         land (shapely.Polygon): The polygon describing world land. Useful to exclude areas on sea
+        resample_factor (float): Factor in (0, 1) to downsample the DEM and trade
+            topographic accuracy for speed. Defaults to 1.0 (no downsampling).
 
     Returns:
         dem (gpd.GeoDataFrame): GeoDataFrame with the elevation of points in the area
@@ -289,16 +367,12 @@ def get_dem(
             r.write(raster)
 
         # useful to reduce processing speed (lowers the resolution of the dem)
-        resample_factor = 1 / 1
-
-        if resample_factor < 1:
+        if resample_factor and resample_factor < 1:
             with rasterio.open(f.name, **meta) as r:
                 # resample data to target shape
                 raster = r.read(
-                    out_shape=(
-                        r.count,
-                        int(r.height * resample_factor),
-                        int(r.width * resample_factor),
+                    out_shape=resample_out_shape(
+                        r.count, r.height, r.width, resample_factor
                     ),
                     resampling=Resampling.bilinear,
                 )
@@ -510,8 +584,10 @@ def combine_export(
         else:
             zones.to_file(zonesf, engine="pyogrio", mode="a")  # type:ignore
 
-    zones = gpd.read_file(zonesf, engine="pyogrio")
-    zones["zone_id"] = zones.reset_index(drop=True).index + 1
+    if zonesf.exists():
+        zones = gpd.read_file(zonesf, engine="pyogrio")
+        zones["zone_id"] = zones.reset_index(drop=True).index + 1
+        zones.to_file(zonesf, engine="pyogrio")  # type:ignore
 
     for f in list(in_folder.rglob("stations*.gpkg")):
         stations = gpd.read_file(f, engine="pyogrio")
@@ -521,8 +597,10 @@ def combine_export(
         else:
             stations.to_file(stationsf, engine="pyogrio", mode="a")  # type:ignore
 
-    stations = gpd.read_file(stationsf, engine="pyogrio")
-    stations["station_id"] = stations.reset_index(drop=True).index + 1
+    if stationsf.exists():
+        stations = gpd.read_file(stationsf, engine="pyogrio")
+        stations["station_id"] = stations.reset_index(drop=True).index + 1
+        stations.to_file(stationsf, engine="pyogrio")  # type:ignore
 
     if duration:
         _duration = duration.total_seconds()

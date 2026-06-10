@@ -13,6 +13,7 @@ def overwrite_config(
     min_aspect_zone_area_cell_perc,
     include_buildings,
     outfolder,
+    dem_resample_factor=None,
 ):
     if h3_resolution:
         config["h3_resolution"] = h3_resolution
@@ -43,6 +44,9 @@ def overwrite_config(
 
     if outfolder:
         config["outfolder"] = outfolder
+
+    if dem_resample_factor:
+        config["dem_resample_factor"] = dem_resample_factor
 
     return config
 
