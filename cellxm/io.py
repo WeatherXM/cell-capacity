@@ -256,7 +256,7 @@ def download_dem_data(bbox: Tuple[int, int, int, int], datasource: str = "COP90"
 
                     fp = (
                         cp
-                        / f"Copernicus_DSM_COG_30_{yd}{str(absy).zfill(2)}_00_{xd}{str(absx).zfill(3)}_00_DEM.tif"
+                        / f"Copernicus_DSM_30_{yd}{str(absy).zfill(2)}_00_{xd}{str(absx).zfill(3)}_00_DEM.tif"
                     )
                     files.append(fp)
 

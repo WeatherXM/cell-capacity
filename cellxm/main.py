@@ -248,8 +248,27 @@ def locate(
     dem_resample_factor = configd.get("dem_resample_factor", 1.0)
     maxtasksperchild = configd.get("maxtasksperchild", 200)
 
+    # Determine safe number of CPUs based on total system RAM to prevent OOM/deadlocks/reboots
+    try:
+        total_ram_gb = (os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')) / (1024**3)
+    except Exception:
+        total_ram_gb = 16.0  # Conservative fallback
+
+    # Memory-aware CPU scaling: Allow ~4GB per process on <= 16GB machines, ~3.5GB per process on larger ones
+    if total_ram_gb <= 16.5:
+        max_safe_cpus = max(1, int(total_ram_gb // 4))  # e.g., 4 CPUs on a 16GB RAM machine, 2 on 8GB
+    else:
+        max_safe_cpus = max(1, int(total_ram_gb // 3.5))  # e.g., 5 CPUs on an 18GB RAM machine
+
     if not ncpus:
         ncpus = os.cpu_count() or 1
+
+    if ncpus > max_safe_cpus:
+        logging.warning(
+            f"System has {total_ram_gb:.1f} GB of physical RAM. Capping configured ncpus from {ncpus} "
+            f"to {max_safe_cpus} to prevent memory exhaustion and kernel panics."
+        )
+        ncpus = max_safe_cpus
 
     configd["ncpus"] = ncpus
 
