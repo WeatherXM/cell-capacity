@@ -39,11 +39,29 @@ def h3_cells_from_bbox(
         gpd.GeoDataFrame: The GeoDataFrame containing the h3 cells
     """
     minx, miny, maxx, maxy = bbox
-    poly = h3.Polygon([[miny, minx], [miny, maxx], [maxy, maxx], [maxy, minx]])
+    coords = [[miny, minx], [miny, maxx], [maxy, maxx], [maxy, minx]]
+
+    if hasattr(h3, "LatLngPoly"):
+        poly = h3.LatLngPoly(coords)
+    elif hasattr(h3, "Polygon"):
+        poly = h3.Polygon(coords)
+    else:
+        poly = coords
 
     cells = []
-    for cell_id in h3.polygon_to_cells(poly, res=resolution):
-        c = shapely.Polygon(h3.cell_to_boundary(cell_id, geo_json=True))
+    if hasattr(h3, "polygon_to_cells"):
+        cells_iterable = h3.polygon_to_cells(poly, res=resolution)
+    else:
+        cells_iterable = h3.polyfill(poly, res=resolution)
+
+    for cell_id in cells_iterable:
+        try:
+            c_coords = h3.cell_to_boundary(cell_id, geo_json=True)
+        except TypeError:
+            lat_lng_coords = h3.cell_to_boundary(cell_id)
+            c_coords = [(lng, lat) for lat, lng in lat_lng_coords]
+
+        c = shapely.Polygon(c_coords)
         cells.append((cell_id, c))
 
     cells = pd.DataFrame(cells, columns=["h3_id", "geom"])

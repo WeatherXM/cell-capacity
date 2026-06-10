@@ -94,11 +94,8 @@ def locate_station_zones(
         .to_frame(name="geometry")
     )
     m = zones["type"].str.startswith("topo-")  # type:ignore
-    topo = (
-        zones[m]
-        .geometry.apply(lambda p: close_holes(p))  # type:ignore
-        .to_frame(name="geometry")
-    )
+    topo_geoms = [close_holes(p) for p in zones[m].geometry]
+    topo = gpd.GeoDataFrame(geometry=topo_geoms, crs=zones.crs)
 
     s = gpd.sjoin(green, topo, predicate="within")
     subzone_idxs = s[s.index != s["index_right"]].index
@@ -196,9 +193,8 @@ def locate_zones_topography(
     # df_high = df_high[df_high["h3_id"].isin(rough_cells)]
 
     # start with high ground zones
-    df_high.loc[:, "aspect"] = 0
     # create tuples of geometry, value pairs, where value is the attribute value you want to burn
-    gvs = ((g, v) for g, v in zip(df_high.geometry, df_high["aspect"]))
+    gvs = ((g, 0) for g in df_high.geometry)
 
     # Rasterize vector using the shape and transform of the raster
     rasterized = rasterio.features.rasterize(
@@ -221,7 +217,8 @@ def locate_zones_topography(
 
     if not df_low.empty:
         # create tuples of geometry, value pairs, where value is the attribute value you want to burn
-        gvs = ((g, v) for g, v in zip(df_low.geometry, df_low["aspect"].replace(d_inv)))
+        aspect_mapped = df_low["aspect"].astype(str).map(d_inv)
+        gvs = ((g, v) for g, v in zip(df_low.geometry, aspect_mapped))
 
         # Rasterize vector using the shape and transform of the raster
         rasterized = rasterio.features.rasterize(
