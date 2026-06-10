@@ -483,26 +483,31 @@ def get_land(fp: str) -> gpd.GeoDataFrame:
     """
     try:
         land = gpd.read_file(fp, engine="pyogrio")
-    except:
+    except Exception:
         import requests
-        from fiona.io import ZipMemoryFile
+        import zipfile
+        import io
+        import shutil
 
         url = "https://osmdata.openstreetmap.de/download/simplified-land-polygons-complete-3857.zip"
         r = requests.get(url)
 
-        with ZipMemoryFile(r.content) as zip:
-            with zip.open(
-                "simplified-land-polygons-complete-3857/simplified_land_polygons.shp"
-            ) as collection:
-                crs = collection.crs
-                land = gpd.GeoDataFrame.from_features(collection, crs=crs).to_crs(
-                    epsg=4326
-                )
+        fldr_out = Path(fp).parent
+        fldr_out.mkdir(parents=True, exist_ok=True)
 
-                fldr_out = Path(fp).parent
-                fldr_out.mkdir(parents=True, exist_ok=True)
+        temp_dir = fldr_out / "temp_land_unzipped"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-                land.to_file(fp, engine="pyogrio")  # type:ignore
+        try:
+            with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                z.extractall(temp_dir)
+            shp_path = temp_dir / "simplified-land-polygons-complete-3857" / "simplified_land_polygons.shp"
+            land = gpd.read_file(shp_path, engine="pyogrio")
+            land = land.to_crs(epsg=4326)
+            land.to_file(fp, engine="pyogrio")
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
     if land.crs.to_epsg() != 4326:  # type:ignore
         land = land.to_crs(epsg=4326)  # type:ignore
@@ -520,24 +525,31 @@ def get_coastline(fp: str) -> gpd.GeoDataFrame:
     """
     try:
         coastline = gpd.read_file(fp, engine="pyogrio")
-    except:
+    except Exception:
         import requests
-        from fiona.io import ZipMemoryFile
+        import zipfile
+        import io
+        import shutil
 
         url = "https://osmdata.openstreetmap.de/download/coastlines-split-4326.zip"
         r = requests.get(url)
 
-        with ZipMemoryFile(r.content) as zip:
-            with zip.open("coastlines-split-4326/lines.shp") as collection:
-                crs = collection.crs
-                coastline = gpd.GeoDataFrame.from_features(collection, crs=crs).to_crs(
-                    epsg=4326
-                )
+        fldr_out = Path(fp).parent
+        fldr_out.mkdir(parents=True, exist_ok=True)
 
-                fldr_out = Path(fp).parent
-                fldr_out.mkdir(parents=True, exist_ok=True)
+        temp_dir = fldr_out / "temp_coastline_unzipped"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-                coastline.to_file(fp, engine="pyogrio")  # type:ignore
+        try:
+            with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                z.extractall(temp_dir)
+            shp_path = temp_dir / "coastlines-split-4326" / "lines.shp"
+            coastline = gpd.read_file(shp_path, engine="pyogrio")
+            coastline = coastline.to_crs(epsg=4326)
+            coastline.to_file(fp, engine="pyogrio")
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
     if coastline.crs.to_epsg() != 4326:  # type:ignore
         coastline = coastline.to_crs(epsg=4326)  # type:ignore
