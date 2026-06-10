@@ -116,7 +116,8 @@ def locate_stations_wrap(
 
         return cells, zones
     except BaseException as e:
-        # print(e)
+        import traceback
+        traceback.print_exc()
         print(f"error at bbox: {cells.total_bounds}")
         return None
 
@@ -244,7 +245,8 @@ def locate(
     min_aspect_zone_area_cell_perc = configd["min_aspect_zone_area_cell_perc"]
     include_buildings = configd["include_buildings"]
     out_folder = configd["outfolder"]
-    ncpus = configd.get("ncpus", None)
+    if ncpus is None:
+        ncpus = configd.get("ncpus", None)
     dem_resample_factor = configd.get("dem_resample_factor", 1.0)
     maxtasksperchild = configd.get("maxtasksperchild", 200)
 
@@ -312,8 +314,8 @@ def locate(
         boundary = download_osm_elems(country_code)
 
         minx, miny, maxx, maxy = boundary.bounds
-        land = get_land(fp="./data/inputs/land.gpkg")
-        coast = get_coastline(fp="./data/inputs/coastline.gpkg")
+        land = get_land(fp="./data/inputs/land.gpkg", bbox=boundary)
+        coast = get_coastline(fp="./data/inputs/coastline.gpkg", bbox=boundary)
 
         land = land.clip(boundary, keep_geom_type=True)
         coast = coast.clip(boundary, keep_geom_type=True)
@@ -326,11 +328,31 @@ def locate(
         tdir = pathlib.Path(tdir)
         gxys = list(itertools.product(rngx, rngy))
 
+        # Optimized: Read the full OSM geopackage once into memory (extremely fast with pyogrio)
+        osm_path = cachedir / f"osm/{country_code}.gpkg"
+        if osm_path.exists():
+            osm_full = gpd.read_file(osm_path, engine="pyogrio")
+            import shapely.geometry
+            osm_sindex = osm_full.sindex
+        else:
+            osm_full = gpd.GeoDataFrame()
+            osm_sindex = None
+
         osms = []
         for x, y in gxys:
             # print(x, y)
             bbox = (x, y, x + step, y + step)
-            osmc = gpd.read_file(cachedir / f"osm/{country_code}.gpkg", bbox=bbox)
+            
+            if not osm_full.empty and osm_sindex is not None:
+                # Query spatial index to get possible matches for this bbox (instantaneous)
+                bbox_geom = shapely.geometry.box(*bbox)
+                possible_idx = osm_sindex.query(bbox_geom, predicate="intersects")
+                osmc = osm_full.iloc[possible_idx]
+                # Filter to precise intersections
+                osmc = osmc[osmc.intersects(bbox_geom)]
+            else:
+                osmc = gpd.GeoDataFrame()
+
             osmc = prepare_osm(osmc, min_area_urban, min_area_green, include_buildings)
             osms.append(osmc)
 

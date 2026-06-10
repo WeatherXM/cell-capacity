@@ -125,8 +125,11 @@ def download_osm_elems(
         if pbf.status_code != 200:
             raise ValueError(f"Did not manage to download the pbf for: {country_code}")
 
-        with tempfile.NamedTemporaryFile(suffix=".osm.pbf") as f:
+        f = tempfile.NamedTemporaryFile(suffix=".osm.pbf", delete=False)
+        try:
             f.write(pbf.content)
+            f.close()
+            temp_pbf_name = f.name
 
             s = "landuse,place,aeroway,leisure,natural,building"
             q = """ landuse IN ('residential', 'industrial', 'commercial', 'retail') OR
@@ -147,7 +150,7 @@ def download_osm_elems(
                     "-f",
                     "GPKG",
                     f"{fpgpkg}",
-                    f.name,
+                    temp_pbf_name,
                     "multipolygons",
                 ]
             )
@@ -162,6 +165,8 @@ def download_osm_elems(
                 raise ValueError(
                     f"Conversion of .osm.pbf to .gpkg failed. Delete the {fppbf} file and retry"
                 )
+        finally:
+            Path(f.name).unlink(missing_ok=True)
     return boundary  # type:ignore
 
 
@@ -362,7 +367,9 @@ def get_dem(
     )
 
     dem = gpd.GeoDataFrame()
-    with tempfile.NamedTemporaryFile(suffix=".tif") as f:
+    f = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
+    f.close()
+    try:
         with rasterio.open(f.name, "w", **meta) as r:
             r.write(raster)
 
@@ -414,7 +421,9 @@ def get_dem(
             dem["raster_transform"] = [transform] * dem.shape[0]
 
         # calculate the aspect
-        with tempfile.NamedTemporaryFile(suffix="-aspect.tif") as ff:
+        ff = tempfile.NamedTemporaryFile(suffix="-aspect.tif", delete=False)
+        ff.close()
+        try:
             gdal.DEMProcessing(ff.name, f.name, "aspect")
             with rasterio.open(ff.name, **meta) as r:
                 aspect = r.read(1)
@@ -454,6 +463,10 @@ def get_dem(
                     .replace({1: "n", 2: "e", 3: "s", 4: "w"})  # type:ignore
                     .astype("category")  # type:ignore
                 )
+        finally:
+            Path(ff.name).unlink(missing_ok=True)
+    finally:
+        Path(f.name).unlink(missing_ok=True)
 
     if dem.empty:
         return None
@@ -472,72 +485,86 @@ def get_dem(
     return gpd.GeoDataFrame(dem)
 
 
-def get_land(fp: str) -> gpd.GeoDataFrame:
+def get_land(fp: str, bbox=None) -> gpd.GeoDataFrame:
     """Function to bring the land boundary of Earth
 
     Args:
         fp (str): Path to the file containing the world land boundaries
+        bbox: Optional bounding box or geometry to filter geometries on read
 
     Returns:
         gpd.Geopandas: A GeoGeoDataFrame with the world's land polygons
     """
     try:
-        land = gpd.read_file(fp, engine="pyogrio")
-    except:
+        land = gpd.read_file(fp, engine="pyogrio", bbox=bbox)
+    except Exception:
         import requests
-        from fiona.io import ZipMemoryFile
+        import zipfile
+        import io
+        import shutil
 
         url = "https://osmdata.openstreetmap.de/download/simplified-land-polygons-complete-3857.zip"
         r = requests.get(url)
 
-        with ZipMemoryFile(r.content) as zip:
-            with zip.open(
-                "simplified-land-polygons-complete-3857/simplified_land_polygons.shp"
-            ) as collection:
-                crs = collection.crs
-                land = gpd.GeoDataFrame.from_features(collection, crs=crs).to_crs(
-                    epsg=4326
-                )
+        fldr_out = Path(fp).parent
+        fldr_out.mkdir(parents=True, exist_ok=True)
 
-                fldr_out = Path(fp).parent
-                fldr_out.mkdir(parents=True, exist_ok=True)
+        temp_dir = fldr_out / "temp_land_unzipped"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-                land.to_file(fp, engine="pyogrio")  # type:ignore
+        try:
+            with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                z.extractall(temp_dir)
+            shp_path = temp_dir / "simplified-land-polygons-complete-3857" / "simplified_land_polygons.shp"
+            land = gpd.read_file(shp_path, engine="pyogrio", bbox=bbox)
+            land = land.to_crs(epsg=4326)
+            land.to_file(fp, engine="pyogrio")
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
     if land.crs.to_epsg() != 4326:  # type:ignore
         land = land.to_crs(epsg=4326)  # type:ignore
     return land  # type:ignore
 
 
-def get_coastline(fp: str) -> gpd.GeoDataFrame:
+def get_coastline(fp: str, bbox=None) -> gpd.GeoDataFrame:
     """Function to return the coastline of Earth as described in OSM
 
     Args:
         fp (str): Path to the file containing the world land boundaries
+        bbox: Optional bounding box or geometry to filter geometries on read
 
     Returns:
         gpd.Geopandas: A gGeoDataFrame with the world's coastline
     """
     try:
-        coastline = gpd.read_file(fp, engine="pyogrio")
-    except:
+        coastline = gpd.read_file(fp, engine="pyogrio", bbox=bbox)
+    except Exception:
         import requests
-        from fiona.io import ZipMemoryFile
+        import zipfile
+        import io
+        import shutil
 
         url = "https://osmdata.openstreetmap.de/download/coastlines-split-4326.zip"
         r = requests.get(url)
 
-        with ZipMemoryFile(r.content) as zip:
-            with zip.open("coastlines-split-4326/lines.shp") as collection:
-                crs = collection.crs
-                coastline = gpd.GeoDataFrame.from_features(collection, crs=crs).to_crs(
-                    epsg=4326
-                )
+        fldr_out = Path(fp).parent
+        fldr_out.mkdir(parents=True, exist_ok=True)
 
-                fldr_out = Path(fp).parent
-                fldr_out.mkdir(parents=True, exist_ok=True)
+        temp_dir = fldr_out / "temp_coastline_unzipped"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-                coastline.to_file(fp, engine="pyogrio")  # type:ignore
+        try:
+            with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+                z.extractall(temp_dir)
+            shp_path = temp_dir / "coastlines-split-4326" / "lines.shp"
+            coastline = gpd.read_file(shp_path, engine="pyogrio", bbox=bbox)
+            coastline = coastline.to_crs(epsg=4326)
+            coastline.to_file(fp, engine="pyogrio")
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
 
     if coastline.crs.to_epsg() != 4326:  # type:ignore
         coastline = coastline.to_crs(epsg=4326)  # type:ignore
